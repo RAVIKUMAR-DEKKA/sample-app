@@ -37,8 +37,8 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # Not needed for SonarCloud
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARPROJECT_KEY }}  # Not needed for SonarCloud
         with:
           # Because we have sonar-project.properties, args can be minimal
           args: >
@@ -50,8 +50,8 @@ jobs:
         id: sqgate
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARPROJECT_KEY }}
         with:
           pollingTimeoutSec: 600
       # Official scan + quality gate actions. [1](https://github.com/marketplace/actions/official-sonarqube-scan)[9](https://github.com/SonarSource/sonarqube-quality-gate-action)[10](https://github.com/SonarSource/sonarqube-quality-gate-action/releases)
@@ -61,8 +61,8 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
       # Use token, not password. Official Docker login action. [4](https://github.com/marketplace/actions/docker-login)
 
       # 6) Build the image always; Push only if on main AND Quality Gate PASSED
