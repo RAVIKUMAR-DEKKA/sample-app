@@ -1,0 +1,89 @@
+name: CI | Build → SonarQube → Image Scan → Push
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ${{ vars.DOCKERHUB_USERNAME }}/sample-app
+  PLATFORMS: linux/amd64
+
+jobs:
+  build_scan_push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Get your code
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      # v6 is the latest major for checkout (Jan 2026). fetch-depth: 0 helps Sonar. [7](https://github.com/actions/checkout/releases)[1](https://github.com/marketplace/actions/official-sonarqube-scan)
+
+      # 2) (Optional) Python setup if you later add tests
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # setup-python v6 is current. [8](https://github.com/actions/setup-python)
+
+      # 3) SonarQube code scan (official action)
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # Not needed for SonarCloud
+        with:
+          # Because we have sonar-project.properties, args can be minimal
+          args: >
+            -Dsonar.projectKey=sample-app
+            -Dsonar.sources=.
+
+      # 4) Fail the pipeline if Quality Gate fails (official action)
+      - name: SonarQube Quality Gate
+        id: sqgate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          pollingTimeoutSec: 600
+      # Official scan + quality gate actions. [1](https://github.com/marketplace/actions/official-sonarqube-scan)[9](https://github.com/SonarSource/sonarqube-quality-gate-action)[10](https://github.com/SonarSource/sonarqube-quality-gate-action/releases)
+
+      # 5) Login to Docker Hub (only when not a PR)
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Use token, not password. Official Docker login action. [4](https://github.com/marketplace/actions/docker-login)
+
+      # 6) Build the image always; Push only if on main AND Quality Gate PASSED
+      - name: Build and (conditional) Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ github.ref == 'refs/heads/main' && steps.sqgate.outputs.quality-gate-status == 'PASSED' }}
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      # Official action for building & pushing Docker images. [5](https://github.com/docker/build-push-action)
+
+      # 7) (Optional) Show a vulnerability report for the built image using Docker Scout
+      - name: Docker Scout quickview
+        if: always()
+        run: |
+          # Try to pull the just-built image if it was pushed
+          docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }} || true
+          docker scout quickview ${{ env.IMAGE_NAME }}:${{ github.sha }} || true
+      # Docker docs recommend official actions & include Scout for CI image analysis. [3](https://docs.docker.com/build/ci/github-actions/)
+``
