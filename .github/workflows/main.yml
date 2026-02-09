@@ -86,4 +86,3 @@ jobs:
           docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }} || true
           docker scout quickview ${{ env.IMAGE_NAME }}:${{ github.sha }} || true
       # Docker docs recommend official actions & include Scout for CI image analysis. [3](https://docs.docker.com/build/ci/github-actions/)
-``
